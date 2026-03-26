@@ -22,6 +22,7 @@ app.include_router(integrations.router)
 app.include_router(reports.router)
 app.include_router(calculator.router)
 app.include_router(stand.router)
+app.include_router(maps.router)
 
 @app.get("/")
 def read_root():
