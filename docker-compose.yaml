@@ -1,0 +1,38 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:CrmPass2026@e8psrwqthw3mb3ish9c35c6k:5432/crm_loteamento
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - coolify
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://backend:8000
+    environment:
+      - API_INTERNAL_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crm-frontend.rule=Host(`fkgal89gzhk0f3nw5g0444xa.89.116.74.11.sslip.io`)"
+      - "traefik.http.services.crm-frontend.loadbalancer.server.port=3000"
+    networks:
+      - coolify
+    restart: always
+
+networks:
+  coolify:
+    external: true
