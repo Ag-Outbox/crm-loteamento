@@ -32,7 +32,9 @@ import {
   Check,
 } from "lucide-react";
 
-const API_BASE = "http://localhost:8000";
+// URL-base é a raiz do site agora, já que o Next.js fará o rewrite (proxy) das chamadas /api para o Backend.
+// Isso corta o CORS e permite acessar tudo pela mesma URL
+const API_BASE = "";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface StandConfig {
