@@ -11,3 +11,5 @@ passlib[bcrypt]
 fpdf2
 opencv-python-headless
 numpy
+pytz
+requests
