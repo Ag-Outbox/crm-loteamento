@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Globe,
   Monitor,
@@ -223,7 +224,10 @@ function Toast({
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
-export default function StandOnlinePage() {
+function StandOnlineContent() {
+  const searchParams = useSearchParams();
+  const isPublicView = searchParams.get("view") === "true";
+
   const [activeTab, setActiveTab] = useState<"preview" | "settings">("preview");
   const [config, setConfig] = useState<StandConfig>(DEFAULT_CONFIG);
   const [localConfig, setLocalConfig] = useState<StandConfig>(DEFAULT_CONFIG);
@@ -401,7 +405,8 @@ export default function StandOnlinePage() {
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText("seuloteamento.crm.digital/stand");
+    const publicUrl = `${window.location.origin}/stand?view=true`;
+    navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -416,6 +421,129 @@ export default function StandOnlinePage() {
 
   const hasChanges =
     JSON.stringify(config) !== JSON.stringify(localConfig);
+
+  if (isPublicView) {
+    if (loading) {
+      return (
+        <div className="flex h-screen items-center justify-center bg-slate-50">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+        </div>
+      );
+    }
+
+    if (!config.publicado) {
+      return (
+        <div className="flex h-screen flex-col items-center justify-center bg-slate-50 p-6 text-center">
+          <div className="h-20 w-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-6">
+            <RefreshCw className="h-10 w-10 animate-spin-slow" />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 mb-2">Stand em Manutenção</h1>
+          <p className="text-slate-500 max-w-md font-medium">
+            Estamos preparando novidades incríveis para você. Em breve este stand estará online com todas as unidades e diferenciais.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex min-h-screen flex-col bg-slate-50">
+        <div className="w-full max-w-5xl mx-auto bg-white shadow-xl min-h-screen flex flex-col">
+          {/* Navbar do Stand */}
+          <div className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-6 lg:px-12 sticky top-0 z-50">
+            <div className="font-black italic text-2xl tracking-tighter" style={{ color: config.cor_primaria }}>
+              {config.nome_empreendimento.toUpperCase()}
+            </div>
+            <div className="hidden md:flex gap-8 text-sm font-bold text-gray-500">
+              <span className="border-b-2 pb-1" style={{ color: config.cor_primaria, borderColor: config.cor_primaria }}>Início</span>
+              <span className="hover:text-gray-900 cursor-pointer">Unidades</span>
+              <span className="hover:text-gray-900 cursor-pointer">Localização</span>
+              <button 
+                className="bg-primary text-white px-6 py-2 rounded-full text-xs font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                style={{ backgroundColor: config.cor_primaria }}
+              >
+                CONTATO
+              </button>
+            </div>
+          </div>
+
+          {/* Hero */}
+          <div className="relative h-[450px] lg:h-[600px]">
+            <img src={heroImageSrc} className="w-full h-full object-cover" alt="Hero" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-8 lg:p-20">
+              <h2 className="font-black text-white text-4xl lg:text-6xl mb-4 leading-tight max-w-3xl">
+                {config.slogan}
+              </h2>
+              <p className="text-slate-200 max-w-2xl text-lg font-medium">
+                {config.descricao}
+              </p>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="p-8 lg:p-16 border-b border-slate-50">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+              {[
+                { value: `${config.stats_vendido}%`, label: "Vendido" },
+                { value: config.stats_total_lotes, label: "Lotes Totais" },
+                { value: config.stats_area_minima, label: "Área Mínima" },
+              ].map((stat) => (
+                <div key={stat.label} className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 hover:shadow-lg transition-all">
+                  <p className="text-4xl font-black mb-2" style={{ color: config.cor_primaria }}>{stat.value}</p>
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Mapa Interactiva */}
+          {config.plugins.mapa_interativo && (
+            <div className="p-8 lg:p-16 bg-slate-50/30">
+              <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4">
+                <div className="h-1.5 w-16 rounded-full" style={{ backgroundColor: config.cor_primaria }} />
+                Mapa do Loteamento
+              </h3>
+              {mapImageSrc ? (
+                <div className="rounded-[2.5rem] overflow-hidden border border-slate-200 shadow-2xl bg-white p-4">
+                  <img src={mapImageSrc} alt="Mapa" className="w-full object-contain" />
+                </div>
+              ) : (
+                <div className="h-64 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-4 bg-white">
+                  <Map className="h-12 w-12 text-slate-200" />
+                  <p className="text-slate-400 font-bold">Mapa em breve</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Diferenciais */}
+          <div className="p-8 lg:p-16">
+            <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4">
+              <div className="h-1.5 w-16 rounded-full" style={{ backgroundColor: config.cor_primaria }} />
+              Diferenciais
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {config.diferenciais.map((item) => (
+                <div key={item} className="p-6 bg-white border border-slate-100 rounded-2xl shadow-sm flex items-center gap-4 hover:border-primary/20 transition-all">
+                  <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.cor_primaria}15` }}>
+                    <CheckCircle2 className="h-5 w-5" style={{ color: config.cor_primaria }} />
+                  </div>
+                  <span className="text-sm font-black text-slate-700">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-12 text-center border-t border-slate-50 mt-auto bg-slate-50/50">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Desenvolvido por</p>
+            <div className="font-black text-xl tracking-tighter" style={{ color: config.cor_primaria }}>
+              CRM LOTEAMENTO
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -1105,5 +1233,17 @@ export default function StandOnlinePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StandOnlinePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+      </div>
+    }>
+      <StandOnlineContent />
+    </Suspense>
   );
 }

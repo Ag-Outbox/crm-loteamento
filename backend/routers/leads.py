@@ -31,9 +31,20 @@ def get_leads(db: Session = Depends(get_db), current_user: models.User = Depends
     return query.all()
 
 @router.post("/", response_model=schemas.LeadResponse)
-def create_lead(lead: schemas.LeadCreate, db: Session = Depends(get_db)):
+def create_lead(lead_in: schemas.LeadCreate, db: Session = Depends(get_db)):
     tenant_id = get_current_tenant_id()
-    new_lead = models.Lead(**lead.dict(), tenant_id=tenant_id)
+    
+    # Extrair interesses em unidades
+    unit_ids = lead_in.unit_interests
+    lead_data = lead_in.dict(exclude={"unit_interests"})
+    
+    new_lead = models.Lead(**lead_data, tenant_id=tenant_id)
+    
+    # Associar unidades se informadas
+    if unit_ids:
+        units = db.query(models.Unit).filter(models.Unit.id.in_(unit_ids)).all()
+        new_lead.unit_interests = units
+        
     db.add(new_lead)
     db.commit()
     db.refresh(new_lead)

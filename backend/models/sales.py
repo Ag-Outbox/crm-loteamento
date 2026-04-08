@@ -10,6 +10,14 @@ class ProposalStatus(str, enum.Enum):
     ADJUSTMENT = "pendencia"
     REJECTED = "reprovada"
     CANCELLED = "cancelada"
+    EXPIRED = "expirada"
+
+class PaymentType(str, enum.Enum):
+    DOWN_PAYMENT = "entrada"
+    MONTHLY = "mensal"
+    INTERMEDIATE = "reforco"
+    FINAL = "balao"
+    FINANCING = "financiamento"
 
 class Reservation(Base, TimestampMixin, TenantMixin):
     __tablename__ = "reservations"
@@ -31,15 +39,18 @@ class Proposal(Base, TimestampMixin, TenantMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"))
-    lead_id = Column(Integer, ForeignKey("leads.id"))
-    unit_id = Column(Integer, ForeignKey("units.id"))
-    broker_id = Column(Integer, ForeignKey("users.id"))
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    broker_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     total_amount = Column(Float, nullable=False)
     status = Column(Enum(ProposalStatus), default=ProposalStatus.PENDING)
+    valid_until = Column(DateTime, nullable=True)
     notes = Column(String, nullable=True)
 
     # Relationships
+    lead = relationship("Lead")
+    unit = relationship("Unit")
     installments = relationship("ProposalInstallment", back_populates="proposal", cascade="all, delete-orphan")
 
 class ProposalInstallment(Base, TimestampMixin, TenantMixin):
@@ -47,12 +58,16 @@ class ProposalInstallment(Base, TimestampMixin, TenantMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"))
-    proposal_id = Column(Integer, ForeignKey("proposals.id"))
+    proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False)
     
-    type = Column(String, nullable=False) # Entrada, Mensal, Intermediária, etc.
-    amount = Column(Float, nullable=False)
-    due_date = Column(DateTime, nullable=False)
-    installment_number = Column(Integer, nullable=False)
+    payment_type = Column(Enum(PaymentType), nullable=False)
+    count = Column(Integer, default=1) # Numero de parcelas deste grupo
+    amount_per_installment = Column(Float, nullable=False)
+    total_group_amount = Column(Float, nullable=False)
+    
+    start_date = Column(DateTime, nullable=True)
+    index_type = Column(String, nullable=True) # Ex: INCC, IGPM
+    interest_rate = Column(Float, default=0.0)
 
     # Relationships
     proposal = relationship("Proposal", back_populates="installments")

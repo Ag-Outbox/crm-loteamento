@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from .units import UnitResponse
 
 class PipelineStageBase(BaseModel):
     name: str
@@ -24,6 +25,7 @@ class LeadBase(BaseModel):
 
 class LeadCreate(LeadBase):
     stage_id: int
+    unit_interests: Optional[List[int]] = []
 
 class LeadUpdate(BaseModel):
     stage_id: Optional[int] = None
@@ -31,12 +33,14 @@ class LeadUpdate(BaseModel):
     temperature: Optional[str] = None
     score: Optional[int] = None
     broker_id: Optional[int] = None
+    unit_interests: Optional[List[int]] = None
 
 class LeadResponse(LeadBase):
     id: int
     tenant_id: int
     stage_id: int
     broker_id: Optional[int] = None
+    unit_interests: Optional[List[UnitResponse]] = []
     class Config:
         from_attributes = True
 

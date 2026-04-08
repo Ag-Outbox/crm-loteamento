@@ -1,6 +1,7 @@
 "use client";
 
-import { MoreHorizontal, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MoreHorizontal, Plus, X, Loader2, Check } from "lucide-react";
 import Link from "next/link";
 
 const COLUMNS = [
@@ -13,7 +14,112 @@ const COLUMNS = [
   { id: "concluida", title: "Venda Concluída", count: 15 },
 ];
 
+interface Development {
+  id: number;
+  name: string;
+}
+
+interface Unit {
+  id: number;
+  number: string;
+  block_id: number;
+  status: string;
+}
+
 export default function Home() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Form states
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [selectedDevId, setSelectedDevId] = useState<number | "">("");
+  const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
+  
+  // Data states
+  const [developments, setDevelopments] = useState<Development[]>([]);
+  const [availableUnits, setAvailableUnits] = useState<Unit[]>([]);
+  const [fetchingData, setFetchingData] = useState(false);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      setFetchingData(true);
+      fetch("/api/units/developments")
+        .then(res => res.json())
+        .then(data => {
+          setDevelopments(data);
+          setFetchingData(false);
+        })
+        .catch(err => {
+          console.error("Erro ao carregar loteamentos:", err);
+          setFetchingData(false);
+        });
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    if (selectedDevId) {
+      setFetchingData(true);
+      fetch(`/api/units/developments/${selectedDevId}/mirror`)
+        .then(res => res.json())
+        .then(data => {
+          // Filtrar apenas disponíveis por padrão para o interesse? 
+          // Ou mostrar todos e deixar o usuário escolher?
+          setAvailableUnits(data.filter((u: Unit) => u.status === "disponivel"));
+          setFetchingData(false);
+        })
+        .catch(err => {
+          console.error("Erro ao carregar lotes:", err);
+          setFetchingData(false);
+        });
+    } else {
+      setAvailableUnits([]);
+    }
+  }, [selectedDevId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const leadData = {
+      full_name: fullName,
+      phone,
+      email,
+      stage_id: 1, // Oportunidades
+      unit_interests: selectedUnitIds,
+    };
+
+    try {
+      const res = await fetch("/api/leads/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(leadData),
+      });
+
+      if (res.ok) {
+        setIsModalOpen(false);
+        // Reset form
+        setFullName("");
+        setPhone("");
+        setEmail("");
+        setSelectedDevId("");
+        setSelectedUnitIds([]);
+        // Idealmente aqui recarregaríamos o Kanban
+      }
+    } catch (err) {
+      console.error("Erro ao salvar lead:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleUnitSelection = (unitId: number) => {
+    setSelectedUnitIds(prev => 
+      prev.includes(unitId) ? prev.filter(id => id !== unitId) : [...prev, unitId]
+    );
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -22,10 +128,13 @@ export default function Home() {
           <p className="text-sm text-gray-500 mt-1">Gerencie seus leads e o funil de loteamento (35 ativos)</p>
         </div>
         <div className="flex gap-2">
-          <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-gray-300 hover:bg-gray-100 h-10 py-2 px-4 bg-white text-gray-700 shadow-sm">
+          <button className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-100 h-10 py-2 px-4 bg-white text-gray-700 shadow-sm transition-colors">
             Filtrar
           </button>
-          <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-semibold bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4 shadow-sm">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium font-semibold bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4 shadow-sm transition-colors"
+          >
             <Plus className="mr-2 h-4 w-4" /> Novo Lead
           </button>
         </div>
@@ -50,39 +159,144 @@ export default function Home() {
 
             {/* Column Cards Container */}
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
-              {/* Fake Card Mockup */}
               <div className="group relative flex flex-col gap-2 rounded-md border border-gray-200 bg-white p-3 shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-grab active:cursor-grabbing">
                 <div className="flex items-start justify-between">
                   <span className="inline-flex items-center rounded-sm bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                    Lead Quente
+                    Exemplo Base
                   </span>
-                  <span className="text-xs text-gray-400">2d</span>
+                  <span className="text-xs text-gray-400">Agora</span>
                 </div>
                 <div>
-                  <Link href="/crm/1">
-                    <h4 className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors">João da Silva</h4>
-                  </Link>
-                  <p className="text-xs text-gray-500 mt-0.5">Loteamento Reserva das Flores</p>
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <div className="h-5 w-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600 font-medium">CT</div>
-                    <span className="text-xs text-gray-500">Corretor Teste</span>
-                  </div>
-                  <span className="text-xs font-semibold text-green-600">Score 85</span>
+                  <h4 className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors italic">Dados vindos da API em breve...</h4>
                 </div>
               </div>
             </div>
 
-            {/* Add Card Button */}
             <div className="p-2 border-t border-gray-100">
-              <button className="flex w-full items-center justify-center rounded py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100/50 hover:text-gray-700">
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex w-full items-center justify-center rounded py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100/50 hover:text-gray-700 transition-colors"
+              >
                 <Plus className="mr-1 h-4 w-4" /> Adicionar
               </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* NEW LEAD MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <h2 className="text-lg font-bold text-gray-900">Cadastrar Novo Lead</h2>
+              <button onClick={() => setIsModalOpen(false)} className="rounded-full p-2 hover:bg-gray-100 transition-colors">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Nome Completo</label>
+                <input 
+                  type="text" 
+                  autoFocus
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                  placeholder="Nome do cliente"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Telefone</label>
+                  <input 
+                    type="text" 
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">E-mail</label>
+                  <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                    placeholder="cliente@email.com"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100">
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Loteamento de Interesse</label>
+                <select 
+                  value={selectedDevId}
+                  onChange={(e) => {
+                    setSelectedDevId(Number(e.target.value));
+                    setSelectedUnitIds([]);
+                  }}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
+                >
+                  <option value="">Selecione o empreendimento...</option>
+                  {developments.map(dev => (
+                    <option key={dev.id} value={dev.id}>{dev.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedDevId && (
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Lotes Disponíveis (Clique para selecionar)</label>
+                  {fetchingData ? (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : availableUnits.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic p-3 bg-gray-50 rounded-lg">Nenhum lote disponível encontrado para este loteamento.</p>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableUnits.map(unit => (
+                        <button
+                          key={unit.id}
+                          type="button"
+                          onClick={() => toggleUnitSelection(unit.id)}
+                          className={`p-2 rounded-lg border text-xs font-bold transition-all flex items-center justify-between ${
+                            selectedUnitIds.includes(unit.id) 
+                              ? "bg-primary border-primary text-white shadow-md shadow-primary/20" 
+                              : "bg-white border-gray-200 text-gray-600 hover:border-primary/50"
+                          }`}
+                        >
+                          {unit.number}
+                          {selectedUnitIds.includes(unit.id) && <Check className="h-3 w-3 ml-1" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-2 font-medium italic">
+                    {selectedUnitIds.length} lote(s) selecionado(s)
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-6">
+                <button 
+                  type="submit"
+                  disabled={loading || !fullName}
+                  className="w-full bg-primary text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+                  Cadastrar Lead
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

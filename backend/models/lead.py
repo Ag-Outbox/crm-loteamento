@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum, Table
 from sqlalchemy.orm import relationship
 from .base import Base, TimestampMixin, TenantMixin
 import enum
@@ -7,6 +7,14 @@ class LeadTemperature(str, enum.Enum):
     COLD = "frio"
     WARM = "morno"
     HOT = "quente"
+
+# Tabela de associação para interesses em unidades (Múltiplas unidades por Lead)
+lead_interests = Table(
+    "lead_interests",
+    Base.metadata,
+    Column("lead_id", Integer, ForeignKey("leads.id"), primary_key=True),
+    Column("unit_id", Integer, ForeignKey("units.id"), primary_key=True),
+)
 
 class PipelineStage(Base, TimestampMixin, TenantMixin):
     __tablename__ = "pipeline_stages"
@@ -32,7 +40,7 @@ class Lead(Base, TimestampMixin, TenantMixin):
     full_name = Column(String, index=True, nullable=False)
     phone = Column(String, index=True, nullable=True)
     email = Column(String, index=True, nullable=True)
-    product_interest = Column(String, nullable=True) # Empreendimento
+    product_interest = Column(String, nullable=True) # Empreendimento (Legacy)
     origin = Column(String, nullable=True) # Ex: Site, WhatsApp, Ads
     temperature = Column(Enum(LeadTemperature), default=LeadTemperature.WARM)
     score = Column(Integer, default=0)
@@ -43,3 +51,6 @@ class Lead(Base, TimestampMixin, TenantMixin):
     stage = relationship("PipelineStage", back_populates="leads")
     tasks = relationship("Task", back_populates="lead", cascade="all, delete-orphan")
     history = relationship("LeadHistory", back_populates="lead", cascade="all, delete-orphan")
+    
+    # Novos relacionamentos
+    unit_interests = relationship("Unit", secondary=lead_interests)
