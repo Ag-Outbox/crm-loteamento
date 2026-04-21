@@ -278,13 +278,22 @@ function StandOnlineContent() {
   }, []);
 
   useEffect(() => {
+    console.log("Iniciando carregamento do Stand...");
     fetchConfig();
     
     // Carregar lista de loteamentos para o seletor
     fetch("/api/units/developments")
-      .then(res => res.json())
-      .then(data => setDevelopments(data))
-      .catch(() => {});
+      .then(async res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        console.log("Loteamentos carregados:", data);
+        setDevelopments(data);
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar developments:", err);
+      });
   }, [fetchConfig]);
 
   // Carregar unidades do Stand
@@ -466,7 +475,7 @@ function StandOnlineContent() {
       );
     }
 
-    if (!config.publicado) {
+    if (!config || !config.publicado) {
       return (
         <div className="flex h-screen flex-col items-center justify-center bg-slate-50 p-6 text-center">
           <div className="h-20 w-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-6">
