@@ -43,7 +43,7 @@ export default function UnidadesPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+  const API_BASE = "";
 
   useEffect(() => {
     fetch(`${API_BASE}/api/units/developments`)

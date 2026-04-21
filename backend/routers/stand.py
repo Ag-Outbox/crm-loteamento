@@ -37,6 +37,7 @@ def get_stand_config() -> dict:
         "template": "premium",
         "hero_image_url": None,
         "map_image_url": None,
+        "development_id": None, # ID do loteamento associado
         "diferenciais": ["Quadra de Tênis", "Portais Monumentais", "Ciclovias", "Rede de Esgoto Própria"],
         "stats_vendido": "85",
         "stats_total_lotes": "120",
@@ -73,6 +74,7 @@ async def update_config(
     stats_vendido: Optional[str] = Form(None),
     stats_total_lotes: Optional[str] = Form(None),
     stats_area_minima: Optional[str] = Form(None),
+    development_id: Optional[int] = Form(None),
     diferenciais: Optional[str] = Form(None),  # JSON string
     plugins: Optional[str] = Form(None),  # JSON string
     publicado: Optional[str] = Form(None),
@@ -96,6 +98,8 @@ async def update_config(
         config["stats_total_lotes"] = stats_total_lotes
     if stats_area_minima is not None:
         config["stats_area_minima"] = stats_area_minima
+    if development_id is not None:
+        config["development_id"] = development_id
     if diferenciais is not None:
         try:
             config["diferenciais"] = json.loads(diferenciais)
@@ -209,3 +213,35 @@ async def remove_map_image():
     config["map_image_url"] = None
     save_stand_config(config)
     return {"status": "ok"}
+
+
+@router.get("/units")
+async def get_stand_units(db: Session = Depends(get_db)):
+    """Retorna as unidades do loteamento configurado para o Stand."""
+    config = get_stand_config()
+    dev_id = config.get("development_id")
+    
+    if not dev_id:
+        # Se não houver loteamento configurado, retorna o primeiro (para não quebrar)
+        first_dev = db.query(models.Development).first()
+        if not first_dev:
+            return []
+        dev_id = first_dev.id
+
+    units = db.query(models.Unit).join(models.Block).filter(
+        models.Block.development_id == dev_id
+    ).all()
+    
+    return [
+        {
+            "id": u.id,
+            "number": u.number,
+            "status": u.status,
+            "price": u.price,
+            "area_m2": u.area_m2,
+            "map_x": u.map_x,
+            "map_y": u.map_y,
+            "block_name": u.block.name
+        }
+        for u in units
+    ]

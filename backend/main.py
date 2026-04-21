@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from routers import leads, units, sales, integrations, reports, calculator, auth, users, proposals, maps, stand
 
 app = FastAPI(title="CRM Loteamento API", version="1.0.0")
@@ -23,6 +25,11 @@ app.include_router(reports.router)
 app.include_router(calculator.router)
 app.include_router(stand.router)
 app.include_router(maps.router)
+
+# Servir arquivos estáticos (uploads do Stand)
+uploads_path = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(uploads_path, exist_ok=True)
+app.mount("/api/stand/uploads", StaticFiles(directory=uploads_path), name="uploads")
 
 @app.get("/")
 def read_root():

@@ -33,8 +33,7 @@ import {
   Check,
 } from "lucide-react";
 
-// URL-base é a raiz do site agora, já que o Next.js fará o rewrite (proxy) das chamadas /api para o Backend.
-// Isso corta o CORS e permite acessar tudo pela mesma URL
+// No Next.js com Fusion/Rewrites, usamos /api relativo para evitar duplicidade
 const API_BASE = "";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -56,6 +55,7 @@ interface StandConfig {
     simulador_financeiro: boolean;
     tour_virtual: boolean;
   };
+  development_id: number | null;
 }
 
 const DEFAULT_CONFIG: StandConfig = {
@@ -82,6 +82,7 @@ const DEFAULT_CONFIG: StandConfig = {
     simulador_financeiro: true,
     tour_virtual: false,
   },
+  development_id: null,
 };
 
 const PALETTE = [
@@ -243,6 +244,12 @@ function StandOnlineContent() {
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">(
     "desktop"
   );
+  
+  // Dados do Loteamento para o Mapa
+  const [developments, setDevelopments] = useState<any[]>([]);
+  const [standUnits, setStandUnits] = useState<any[]>([]);
+  const [unitLoading, setUnitLoading] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState<any>(null);
 
   const showToast = (
     msg: string,
@@ -272,7 +279,35 @@ function StandOnlineContent() {
 
   useEffect(() => {
     fetchConfig();
+    
+    // Carregar lista de loteamentos para o seletor
+    fetch("/api/units/developments")
+      .then(res => res.json())
+      .then(data => setDevelopments(data))
+      .catch(() => {});
   }, [fetchConfig]);
+
+  // Carregar unidades do Stand
+  const fetchStandUnits = useCallback(async () => {
+    setUnitLoading(true);
+    try {
+      const res = await fetch("/api/stand/units");
+      if (res.ok) {
+        const data = await res.json();
+        setStandUnits(data);
+      }
+    } catch (err) {
+      console.error("Erro stand units:", err);
+    } finally {
+      setUnitLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isPublicView || activeTab === "preview") {
+      fetchStandUnits();
+    }
+  }, [isPublicView, activeTab, fetchStandUnits, config.development_id]);
 
   // ── Salvar configurações ───────────────────────────────────────────────────
   const handleSave = async () => {
@@ -495,21 +530,94 @@ function StandOnlineContent() {
             </div>
           </div>
 
-          {/* Mapa Interactiva */}
+          {/* Mapa Interactiva Real */}
           {config.plugins.mapa_interativo && (
-            <div className="p-8 lg:p-16 bg-slate-50/30">
+            <div className="p-8 lg:p-16 bg-slate-50/30" id="mapa">
               <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4">
                 <div className="h-1.5 w-16 rounded-full" style={{ backgroundColor: config.cor_primaria }} />
                 Mapa do Loteamento
               </h3>
-              {mapImageSrc ? (
-                <div className="rounded-[2.5rem] overflow-hidden border border-slate-200 shadow-2xl bg-white p-4">
-                  <img src={mapImageSrc} alt="Mapa" className="w-full object-contain" />
-                </div>
-              ) : (
-                <div className="h-64 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-4 bg-white">
-                  <Map className="h-12 w-12 text-slate-200" />
-                  <p className="text-slate-400 font-bold">Mapa em breve</p>
+              
+              <div className="relative rounded-[2.5rem] overflow-hidden border border-slate-200 shadow-2xl bg-white p-4 min-h-[400px]">
+                {mapImageSrc ? (
+                  <div className="relative inline-block w-full">
+                    <img src={mapImageSrc} alt="Mapa" className="w-full object-contain" />
+                    
+                    {/* Plotagem dos Lotes - Reutilizando lógica do Unidades */}
+                    {standUnits.map(unit => (unit.map_x && unit.map_y) && (
+                      <div 
+                        key={unit.id}
+                        onClick={() => setSelectedUnit(unit)}
+                        className={`absolute h-4 w-4 -ml-2 -mt-2 rounded-full border-2 border-white cursor-pointer shadow-lg hover:scale-150 transition-all z-10 
+                          ${unit.status === 'disponivel' ? 'bg-green-500' : 
+                            unit.status === 'vendido' ? 'bg-red-500' : 
+                            unit.status === 'reservado' ? 'bg-orange-500' : 'bg-gray-500'}`}
+                        style={{ left: `${unit.map_x}%`, top: `${unit.map_y}%` }}
+                        title={`Lote ${unit.number}`}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-64 flex flex-col items-center justify-center gap-4">
+                    <Map className="h-12 w-12 text-slate-200" />
+                    <p className="text-slate-400 font-bold">Imagem do mapa não configurada</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal de Detalhes da Unidade (Cliente) */}
+              {selectedUnit && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                  <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="p-8">
+                       <div className="flex justify-between items-start mb-6">
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unidade</span>
+                            <h4 className="text-3xl font-black text-slate-900">{selectedUnit.block_name} {selectedUnit.number}</h4>
+                          </div>
+                          <button onClick={() => setSelectedUnit(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                            <X className="h-6 w-6 text-slate-400" />
+                          </button>
+                       </div>
+
+                       <div className="grid grid-cols-2 gap-4 mb-8">
+                          <div className="p-4 bg-slate-50 rounded-2xl">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Área</p>
+                             <p className="text-lg font-black text-slate-900">{selectedUnit.area_m2}m²</p>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-2xl">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Status</p>
+                             <div className="flex items-center gap-2">
+                                <div className={`h-2 w-2 rounded-full ${selectedUnit.status === 'disponivel' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <p className="text-sm font-black uppercase" style={{ color: selectedUnit.status === 'disponivel' ? '#10b981' : '#ef4444' }}>
+                                   {selectedUnit.status}
+                                </p>
+                             </div>
+                          </div>
+                       </div>
+
+                       {selectedUnit.status === 'disponivel' && (
+                         <div className="mb-8">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Valor do Investimento</p>
+                            <p className="text-3xl font-black text-slate-900" style={{ color: config.cor_primaria }}>
+                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedUnit.price)}
+                            </p>
+                         </div>
+                       )}
+
+                       <button 
+                        className="w-full py-4 rounded-2xl text-white font-black flex items-center justify-center gap-3 shadow-xl hover:scale-105 transition-all"
+                        style={{ backgroundColor: config.cor_primaria }}
+                        onClick={() => {
+                          const msg = encodeURIComponent(`Olá! Tenho interesse no Lote ${selectedUnit.number} do ${config.nome_empreendimento}.`);
+                          window.open(`https://wa.me/55?text=${msg}`);
+                        }}
+                       >
+                          TENHO INTERESSE
+                          <ExternalLink className="h-4 w-4" />
+                       </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -750,6 +858,32 @@ function StandOnlineContent() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-50">
+                <label className="block text-xs font-bold text-gray-500 mb-2 ml-1">
+                  Vincular Loteamento (Dados Reais)
+                </label>
+                <select
+                  value={localConfig.development_id || ""}
+                  onChange={(e) =>
+                    setLocalConfig({
+                      ...localConfig,
+                      development_id: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white cursor-pointer"
+                >
+                  <option value="">Nenhum selecionado</option>
+                  {developments.map((dev) => (
+                    <option key={dev.id} value={dev.id}>
+                      {dev.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-2 ml-1 leading-tight">
+                  Selecione o loteamento para puxar os lotes, preços e o mapa interativo automaticamente.
+                </p>
               </div>
             </div>
           </div>
