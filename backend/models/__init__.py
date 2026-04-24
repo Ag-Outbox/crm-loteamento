@@ -6,5 +6,6 @@ from .task import Task, LeadHistory
 from .units import Development, Block, Unit, UnitStatus
 from .sales import Reservation, Proposal, ProposalInstallment, ProposalStatus
 from .financial import AccountReceivable, AccountPayable, ReceivableStatus
+from .stand import Stand
 
 # All models are imported here so that Base.metadata.create_all() catches them when we import models

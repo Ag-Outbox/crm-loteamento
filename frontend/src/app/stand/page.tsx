@@ -1,39 +1,28 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   Globe,
-  Monitor,
-  Smartphone,
-  Layout,
-  ExternalLink,
-  Eye,
-  Settings,
-  Brush,
-  Share2,
-  CheckCircle2,
-  Copy,
-  ChevronRight,
   Plus,
-  Upload,
-  Trash2,
-  Save,
-  Image as ImageIcon,
-  Map,
-  Loader2,
   RefreshCw,
-  X,
-  Edit3,
-  Palette,
-  FileImage,
-  ToggleLeft,
-  ToggleRight,
-  AlertCircle,
+  Loader2,
+  Trash2,
+  ExternalLink,
+  Save,
+  Share2,
   Check,
+  ChevronLeft,
+  Layout,
+  Brush,
+  Palette,
+  Image as ImageIcon,
+  Map as MapIcon,
+  X,
+  AlertCircle,
+  Settings,
+  CheckCircle2,
 } from "lucide-react";
 
-// No Next.js com Fusion/Rewrites, usamos /api relativo para evitar duplicidade
 const API_BASE = "";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -55,35 +44,17 @@ interface StandConfig {
     simulador_financeiro: boolean;
     tour_virtual: boolean;
   };
-  development_id: number | null;
 }
 
-const DEFAULT_CONFIG: StandConfig = {
-  nome_empreendimento: "Reserva das Flores",
-  slogan: "Onde a natureza e o design se encontram.",
-  descricao:
-    "Lotes a partir de 250m² com infraestrutura de lazer completa e segurança 24h para sua família.",
-  cor_primaria: "#4f46e5",
-  template: "premium",
-  hero_image_url: null,
-  map_image_url: null,
-  diferenciais: [
-    "Quadra de Tênis",
-    "Portais Monumentais",
-    "Ciclovias",
-    "Rede de Esgoto Própria",
-  ],
-  stats_vendido: "85",
-  stats_total_lotes: "120",
-  stats_area_minima: "250m²",
-  publicado: true,
-  plugins: {
-    mapa_interativo: true,
-    simulador_financeiro: true,
-    tour_virtual: false,
-  },
-  development_id: null,
-};
+interface StandSummary {
+  id: number;
+  uuid: string;
+  name: string;
+  is_active: boolean;
+  development_id: number | null;
+  config: StandConfig;
+  created_at: string;
+}
 
 const PALETTE = [
   { name: "Índigo", value: "#4f46e5" },
@@ -94,1286 +65,332 @@ const PALETTE = [
   { name: "Ciano", value: "#0891b2" },
 ];
 
-// ─── Upload Area component ───────────────────────────────────────────────────
-function UploadArea({
-  label,
-  hint,
-  currentUrl,
-  onUpload,
-  onRemove,
-  uploading,
-  icon: Icon,
-}: {
-  label: string;
-  hint: string;
-  currentUrl: string | null;
-  onUpload: (file: File) => void;
-  onRemove: () => void;
-  uploading: boolean;
-  icon: React.ElementType;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file) onUpload(file);
-    },
-    [onUpload]
-  );
-
-  const imageUrl = currentUrl ? `${API_BASE}${currentUrl}` : null;
-
-  return (
-    <div className="space-y-2">
-      <label className="block text-xs font-bold text-gray-500 ml-1">
-        {label}
-      </label>
-
-      {imageUrl ? (
-        <div className="relative group rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-          <img
-            src={imageUrl}
-            alt={label}
-            className="w-full h-32 object-cover"
-          />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-            <button
-              onClick={() => inputRef.current?.click()}
-              className="p-2 bg-white rounded-xl text-gray-900 hover:bg-gray-100 transition-colors"
-              title="Trocar imagem"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-            <button
-              onClick={onRemove}
-              className="p-2 bg-red-500 rounded-xl text-white hover:bg-red-600 transition-colors"
-              title="Remover imagem"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div
-          onClick={() => !uploading && inputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className={`h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer
-            ${uploading ? "opacity-60 cursor-wait border-primary/40 bg-primary/5" : "border-slate-200 hover:border-primary/50 hover:bg-primary/5"}`}
-        >
-          {uploading ? (
-            <Loader2 className="h-6 w-6 text-primary animate-spin" />
-          ) : (
-            <>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <Icon className="h-5 w-5" />
-              </div>
-              <p className="text-xs font-bold text-slate-500">
-                Clique ou arraste a imagem aqui
-              </p>
-              <p className="text-[10px] text-slate-400">{hint}</p>
-            </>
-          )}
-        </div>
-      )}
-
-      <input
-        ref={inputRef}
-        type="file"
-        className="hidden"
-        accept="image/jpeg,image/png,image/webp"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            onUpload(file);
-            e.target.value = "";
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-// ─── Toast component ─────────────────────────────────────────────────────────
-function Toast({
-  msg,
-  type,
-}: {
-  msg: string;
-  type: "success" | "error" | "loading";
-}) {
-  const colors = {
-    success: "bg-emerald-600",
-    error: "bg-red-600",
-    loading: "bg-indigo-600",
-  };
-  const icons = {
-    success: <Check className="h-4 w-4" />,
-    error: <AlertCircle className="h-4 w-4" />,
-    loading: <Loader2 className="h-4 w-4 animate-spin" />,
-  };
-  return (
-    <div
-      className={`fixed bottom-6 right-6 z-[999] flex items-center gap-3 ${colors[type]} text-white font-bold py-3 px-5 rounded-2xl shadow-2xl animate-in slide-in-from-bottom duration-300`}
-    >
-      {icons[type]}
-      {msg}
-    </div>
-  );
-}
-
-// ─── Main Page ───────────────────────────────────────────────────────────────
-function StandOnlineContent() {
-  const searchParams = useSearchParams();
-  const isPublicView = searchParams.get("view") === "true";
-
-  const [activeTab, setActiveTab] = useState<"preview" | "settings">("preview");
-  const [config, setConfig] = useState<StandConfig>(DEFAULT_CONFIG);
-  const [localConfig, setLocalConfig] = useState<StandConfig>(DEFAULT_CONFIG);
+function StandManagerContent() {
+  const [stands, setStands] = useState<StandSummary[]>([]);
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newStandName, setNewStandName] = useState("");
+  const [developments, setDevelopments] = useState<any[]>([]);
+
+  // Estados do Editor
+  const [localConfig, setLocalConfig] = useState<StandConfig | null>(null);
   const [uploadingHero, setUploadingHero] = useState(false);
   const [uploadingMap, setUploadingMap] = useState(false);
-  const [toast, setToast] = useState<{
-    msg: string;
-    type: "success" | "error" | "loading";
-  } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">(
-    "desktop"
-  );
-  
-  // Dados do Loteamento para o Mapa
-  const [developments, setDevelopments] = useState<any[]>([]);
-  const [standUnits, setStandUnits] = useState<any[]>([]);
-  const [unitLoading, setUnitLoading] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<any>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" | "loading" } | null>(null);
 
-  const showToast = (
-    msg: string,
-    type: "success" | "error" | "loading",
-    duration = 3000
-  ) => {
+  const showToast = (msg: string, type: "success" | "error" | "loading", duration = 3000) => {
     setToast({ msg, type });
     if (type !== "loading") setTimeout(() => setToast(null), duration);
   };
 
-  // ── Carregar config da API ──────────────────────────────────────────────────
-  const fetchConfig = useCallback(async () => {
+  const fetchStands = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/stand/config`);
+      const res = await fetch(`${API_BASE}/api/stand/list`);
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
-        setLocalConfig(data);
+        setStands(data);
       }
-    } catch {
-      // API offline, usa defaults
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    console.log("Iniciando carregamento do Stand...");
-    fetchConfig();
-    
-    // Carregar lista de loteamentos para o seletor
-    fetch("/api/units/developments")
-      .then(async res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        console.log("Loteamentos carregados:", data);
-        setDevelopments(data);
-      })
-      .catch((err) => {
-        console.error("Erro ao carregar developments:", err);
-      });
-  }, [fetchConfig]);
-
-  // Carregar unidades do Stand
-  const fetchStandUnits = useCallback(async () => {
-    setUnitLoading(true);
+  const fetchDevelopments = useCallback(async () => {
     try {
-      const res = await fetch("/api/stand/units");
-      if (res.ok) {
-        const data = await res.json();
-        setStandUnits(data);
-      }
-    } catch (err) {
-      console.error("Erro stand units:", err);
-    } finally {
-      setUnitLoading(false);
-    }
+      const res = await fetch("/api/units/developments");
+      if (res.ok) setDevelopments(await res.json());
+    } catch (err) { console.error(err); }
   }, []);
 
   useEffect(() => {
-    if (isPublicView || activeTab === "preview") {
-      fetchStandUnits();
-    }
-  }, [isPublicView, activeTab, fetchStandUnits, config.development_id]);
+    fetchStands();
+    fetchDevelopments();
+  }, [fetchStands, fetchDevelopments]);
 
-  // ── Salvar configurações ───────────────────────────────────────────────────
-  const handleSave = async () => {
+  const handleCreateStand = async () => {
+    if (!newStandName) return;
     setSaving(true);
-    showToast("Salvando...", "loading");
     try {
       const formData = new FormData();
-      formData.append("nome_empreendimento", localConfig.nome_empreendimento);
-      formData.append("slogan", localConfig.slogan);
-      formData.append("descricao", localConfig.descricao);
-      formData.append("cor_primaria", localConfig.cor_primaria);
-      formData.append("template", localConfig.template);
-      formData.append("stats_vendido", localConfig.stats_vendido);
-      formData.append("stats_total_lotes", localConfig.stats_total_lotes);
-      formData.append("stats_area_minima", localConfig.stats_area_minima);
-      formData.append(
-        "diferenciais",
-        JSON.stringify(localConfig.diferenciais)
-      );
-      formData.append(
-        "plugins",
-        JSON.stringify(localConfig.plugins)
-      );
-      formData.append(
-        "publicado",
-        localConfig.publicado ? "true" : "false"
-      );
-
-      const res = await fetch(`${API_BASE}/api/stand/config`, {
+      formData.append("name", newStandName);
+      const res = await fetch(`${API_BASE}/api/stand/create`, {
         method: "POST",
         body: formData,
       });
-
       if (res.ok) {
         const data = await res.json();
-        setConfig(data.config);
+        setStands([...stands, data]);
+        setIsCreating(false);
+        setNewStandName("");
+        setSelectedUuid(data.uuid);
         setLocalConfig(data.config);
-        showToast("Configurações salvas com sucesso!", "success");
-      } else {
-        showToast("Erro ao salvar configurações.", "error");
+        showToast("Site de apresentação gerado!", "success");
       }
-    } catch {
-      showToast("Sem conexão com o servidor.", "error");
+    } catch (err) {
+      showToast("Erro ao criar stand", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  // ── Upload Imagens ─────────────────────────────────────────────────────────
-  const handleUploadHero = async (file: File) => {
-    setUploadingHero(true);
-    showToast("Enviando imagem principal...", "loading");
+  const handleEditStand = (stand: StandSummary) => {
+    setSelectedUuid(stand.uuid);
+    setLocalConfig(stand.config);
+  };
+
+  const handleSaveConfig = async () => {
+    if (!selectedUuid || !localConfig) return;
+    setSaving(true);
+    showToast("Salvando...", "loading");
     try {
       const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${API_BASE}/api/stand/upload/hero-image`, {
+      Object.entries(localConfig).forEach(([key, value]) => {
+        if (typeof value === "object") {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, String(value));
+        }
+      });
+
+      const res = await fetch(`${API_BASE}/api/stand/${selectedUuid}/config`, {
         method: "POST",
         body: formData,
       });
+
       if (res.ok) {
-        const data = await res.json();
-        const updated = { ...localConfig, hero_image_url: data.url };
-        setConfig(updated);
-        setLocalConfig(updated);
-        showToast("Imagem principal atualizada!", "success");
-      } else {
-        const err = await res.json();
-        showToast(err.detail || "Falha no upload.", "error");
+        showToast("Configurações salvas!", "success");
+        fetchStands();
       }
-    } catch {
-      showToast("Erro ao conectar ao servidor.", "error");
+    } catch (err) {
+      showToast("Erro ao salvar", "error");
     } finally {
-      setUploadingHero(false);
+      setSaving(false);
     }
   };
 
-  const handleUploadMap = async (file: File) => {
-    setUploadingMap(true);
-    showToast("Enviando imagem do mapa...", "loading");
+  const handleDeleteStand = async (uuid: string) => {
+    if (!confirm("Tem certeza que deseja excluir este stand?")) return;
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${API_BASE}/api/stand/upload/map-image`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(`${API_BASE}/api/stand/${uuid}`, { method: "DELETE" });
       if (res.ok) {
-        const data = await res.json();
-        const updated = { ...localConfig, map_image_url: data.url };
-        setConfig(updated);
-        setLocalConfig(updated);
-        showToast("Imagem do mapa atualizada!", "success");
-      } else {
-        const err = await res.json();
-        showToast(err.detail || "Falha no upload.", "error");
+        setStands(stands.filter(s => s.uuid !== uuid));
+        showToast("Stand excluído", "success");
       }
-    } catch {
-      showToast("Erro ao conectar ao servidor.", "error");
-    } finally {
-      setUploadingMap(false);
-    }
+    } catch (err) { showToast("Erro ao excluir", "error"); }
   };
 
-  const handleRemoveHero = async () => {
-    try {
-      await fetch(`${API_BASE}/api/stand/upload/hero-image`, {
-        method: "DELETE",
-      });
-      const updated = { ...localConfig, hero_image_url: null };
-      setConfig(updated);
-      setLocalConfig(updated);
-      showToast("Imagem removida.", "success");
-    } catch {
-      showToast("Erro ao remover imagem.", "error");
-    }
-  };
-
-  const handleRemoveMap = async () => {
-    try {
-      await fetch(`${API_BASE}/api/stand/upload/map-image`, {
-        method: "DELETE",
-      });
-      const updated = { ...localConfig, map_image_url: null };
-      setConfig(updated);
-      setLocalConfig(updated);
-      showToast("Imagem do mapa removida.", "success");
-    } catch {
-      showToast("Erro ao remover imagem.", "error");
-    }
-  };
-
-  const handleCopyLink = () => {
-    const publicUrl = `${window.location.origin}/stand?view=true`;
-    navigator.clipboard.writeText(publicUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const heroImageSrc = config.hero_image_url
-    ? `${API_BASE}${config.hero_image_url}`
-    : "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80";
-
-  const mapImageSrc = config.map_image_url
-    ? `${API_BASE}${config.map_image_url}`
-    : null;
-
-  const hasChanges =
-    JSON.stringify(config) !== JSON.stringify(localConfig);
-
-  if (isPublicView) {
-    if (loading) {
-      return (
-        <div className="flex h-screen items-center justify-center bg-slate-50">
-          <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        </div>
-      );
-    }
-
-    if (!config || !config.publicado) {
-      return (
-        <div className="flex h-screen flex-col items-center justify-center bg-slate-50 p-6 text-center">
-          <div className="h-20 w-20 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-6">
-            <RefreshCw className="h-10 w-10 animate-spin-slow" />
-          </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-2">Stand em Manutenção</h1>
-          <p className="text-slate-500 max-w-md font-medium">
-            Estamos preparando novidades incríveis para você. Em breve este stand estará online com todas as unidades e diferenciais.
-          </p>
-        </div>
-      );
-    }
-
+  // ── Render Listagem ────────────────────────────────────────────────────────
+  if (!selectedUuid) {
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
-        <div className="w-full max-w-5xl mx-auto bg-white shadow-xl min-h-screen flex flex-col">
-          {/* Navbar do Stand */}
-          <div className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-6 lg:px-12 sticky top-0 z-50">
-            <div className="font-black italic text-2xl tracking-tighter" style={{ color: config.cor_primaria }}>
-              {config.nome_empreendimento.toUpperCase()}
-            </div>
-            <div className="hidden md:flex gap-8 text-sm font-bold text-gray-500">
-              <span className="border-b-2 pb-1" style={{ color: config.cor_primaria, borderColor: config.cor_primaria }}>Início</span>
-              <span className="hover:text-gray-900 cursor-pointer">Unidades</span>
-              <span className="hover:text-gray-900 cursor-pointer">Localização</span>
-              <button 
-                className="bg-primary text-white px-6 py-2 rounded-full text-xs font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all"
-                style={{ backgroundColor: config.cor_primaria }}
-              >
-                CONTATO
-              </button>
-            </div>
+      <div className="p-6 max-w-6xl mx-auto w-full">
+        <div className="flex items-center justify-between mb-10">
+          <div>
+             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Vitrines Digitais (Stands)</h1>
+             <p className="text-slate-500 font-medium">Gerencie seus sites de apresentação para cada loteamento</p>
           </div>
-
-          {/* Hero */}
-          <div className="relative h-[450px] lg:h-[600px]">
-            <img src={heroImageSrc} className="w-full h-full object-cover" alt="Hero" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-8 lg:p-20">
-              <h2 className="font-black text-white text-4xl lg:text-6xl mb-4 leading-tight max-w-3xl">
-                {config.slogan}
-              </h2>
-              <p className="text-slate-200 max-w-2xl text-lg font-medium">
-                {config.descricao}
-              </p>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="p-8 lg:p-16 border-b border-slate-50">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-              {[
-                { value: `${config.stats_vendido}%`, label: "Vendido" },
-                { value: config.stats_total_lotes, label: "Lotes Totais" },
-                { value: config.stats_area_minima, label: "Área Mínima" },
-              ].map((stat) => (
-                <div key={stat.label} className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 hover:shadow-lg transition-all">
-                  <p className="text-4xl font-black mb-2" style={{ color: config.cor_primaria }}>{stat.value}</p>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Mapa Interactiva Real */}
-          {config.plugins.mapa_interativo && (
-            <div className="p-8 lg:p-16 bg-slate-50/30" id="mapa">
-              <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4">
-                <div className="h-1.5 w-16 rounded-full" style={{ backgroundColor: config.cor_primaria }} />
-                Mapa do Loteamento
-              </h3>
-              
-              <div className="relative rounded-[2.5rem] overflow-hidden border border-slate-200 shadow-2xl bg-white p-4 min-h-[400px]">
-                {mapImageSrc ? (
-                  <div className="relative inline-block w-full">
-                    <img src={mapImageSrc} alt="Mapa" className="w-full object-contain" />
-                    
-                    {/* Plotagem dos Lotes - Reutilizando lógica do Unidades */}
-                    {standUnits.map(unit => (unit.map_x && unit.map_y) && (
-                      <div 
-                        key={unit.id}
-                        onClick={() => setSelectedUnit(unit)}
-                        className={`absolute h-4 w-4 -ml-2 -mt-2 rounded-full border-2 border-white cursor-pointer shadow-lg hover:scale-150 transition-all z-10 
-                          ${unit.status === 'disponivel' ? 'bg-green-500' : 
-                            unit.status === 'vendido' ? 'bg-red-500' : 
-                            unit.status === 'reservado' ? 'bg-orange-500' : 'bg-gray-500'}`}
-                        style={{ left: `${unit.map_x}%`, top: `${unit.map_y}%` }}
-                        title={`Lote ${unit.number}`}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="h-64 flex flex-col items-center justify-center gap-4">
-                    <Map className="h-12 w-12 text-slate-200" />
-                    <p className="text-slate-400 font-bold">Imagem do mapa não configurada</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Modal de Detalhes da Unidade (Cliente) */}
-              {selectedUnit && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                  <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-                    <div className="p-8">
-                       <div className="flex justify-between items-start mb-6">
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unidade</span>
-                            <h4 className="text-3xl font-black text-slate-900">{selectedUnit.block_name} {selectedUnit.number}</h4>
-                          </div>
-                          <button onClick={() => setSelectedUnit(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                            <X className="h-6 w-6 text-slate-400" />
-                          </button>
-                       </div>
-
-                       <div className="grid grid-cols-2 gap-4 mb-8">
-                          <div className="p-4 bg-slate-50 rounded-2xl">
-                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Área</p>
-                             <p className="text-lg font-black text-slate-900">{selectedUnit.area_m2}m²</p>
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-2xl">
-                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Status</p>
-                             <div className="flex items-center gap-2">
-                                <div className={`h-2 w-2 rounded-full ${selectedUnit.status === 'disponivel' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                <p className="text-sm font-black uppercase" style={{ color: selectedUnit.status === 'disponivel' ? '#10b981' : '#ef4444' }}>
-                                   {selectedUnit.status}
-                                </p>
-                             </div>
-                          </div>
-                       </div>
-
-                       {selectedUnit.status === 'disponivel' && (
-                         <div className="mb-8">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Valor do Investimento</p>
-                            <p className="text-3xl font-black text-slate-900" style={{ color: config.cor_primaria }}>
-                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedUnit.price)}
-                            </p>
-                         </div>
-                       )}
-
-                       <button 
-                        className="w-full py-4 rounded-2xl text-white font-black flex items-center justify-center gap-3 shadow-xl hover:scale-105 transition-all"
-                        style={{ backgroundColor: config.cor_primaria }}
-                        onClick={() => {
-                          const msg = encodeURIComponent(`Olá! Tenho interesse no Lote ${selectedUnit.number} do ${config.nome_empreendimento}.`);
-                          window.open(`https://wa.me/55?text=${msg}`);
-                        }}
-                       >
-                          TENHO INTERESSE
-                          <ExternalLink className="h-4 w-4" />
-                       </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Diferenciais */}
-          <div className="p-8 lg:p-16">
-            <h3 className="text-3xl font-black text-slate-900 mb-10 flex items-center gap-4">
-              <div className="h-1.5 w-16 rounded-full" style={{ backgroundColor: config.cor_primaria }} />
-              Diferenciais
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {config.diferenciais.map((item) => (
-                <div key={item} className="p-6 bg-white border border-slate-100 rounded-2xl shadow-sm flex items-center gap-4 hover:border-primary/20 transition-all">
-                  <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.cor_primaria}15` }}>
-                    <CheckCircle2 className="h-5 w-5" style={{ color: config.cor_primaria }} />
-                  </div>
-                  <span className="text-sm font-black text-slate-700">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="p-12 text-center border-t border-slate-50 mt-auto bg-slate-50/50">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Desenvolvido por</p>
-            <div className="font-black text-xl tracking-tighter" style={{ color: config.cor_primaria }}>
-              CRM LOTEAMENTO
-            </div>
-          </div>
+          <button 
+            onClick={() => setIsCreating(true)}
+            className="bg-primary text-white font-black py-3 px-6 rounded-2xl flex items-center gap-2 shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+          >
+            <Plus className="h-5 w-5" /> Gerar Novo Link
+          </button>
         </div>
+
+        {loading ? (
+          <div className="flex h-64 items-center justify-center">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          </div>
+        ) : stands.length === 0 ? (
+          <div className="bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] p-20 text-center flex flex-col items-center gap-4">
+             <div className="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                <Globe className="h-10 w-10" />
+             </div>
+             <h2 className="text-xl font-black text-slate-800">Nenhum Stand Gerado</h2>
+             <p className="text-slate-400 max-w-md">Crie seu primeiro site de apresentação clicando no botão acima e comece a vender suas unidades online.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {stands.map(stand => (
+              <div key={stand.uuid} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl transition-all">
+                <div className="h-32 bg-slate-50 flex items-center justify-center text-slate-200 group-hover:bg-primary/5 transition-all">
+                   <Monitor className="h-12 w-12" />
+                </div>
+                <div className="p-6">
+                  <h3 className="font-black text-slate-900 text-lg mb-1">{stand.name}</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">
+                    {stand.is_active ? "● Online" : "○ Offline"}
+                  </p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleEditStand(stand)}
+                      className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black text-xs hover:bg-slate-800 transition-all"
+                    >
+                      GERENCIAR
+                    </button>
+                    <button 
+                      onClick={() => window.open(`/stand/v/${stand.uuid}`, '_blank')}
+                      className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteStand(stand.uuid)}
+                      className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-all"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Modal Criação */}
+        {isCreating && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+               <h2 className="text-2xl font-black text-slate-900 mb-6">Novo Site de Stand</h2>
+               <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase mb-2">Nome do Site</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Reserva das Flores - Lançamento" 
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                      value={newStandName}
+                      onChange={(e) => setNewStandName(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-4 pt-4">
+                    <button onClick={() => setIsCreating(false)} className="flex-1 py-4 text-slate-400 font-black">CANCELAR</button>
+                    <button 
+                      disabled={!newStandName || saving}
+                      onClick={handleCreateStand}
+                      className="flex-1 py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
+                    >
+                      {saving ? "GERANDO..." : "CRIAR AGORA"}
+                    </button>
+                  </div>
+               </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ── Render Editor ─────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full flex-col">
-      {/* Toast */}
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
+    <div className="flex flex-col h-full overflow-hidden">
+      {toast && <div className={`fixed bottom-6 right-6 z-[999] px-6 py-4 rounded-2xl text-white font-black shadow-2xl flex items-center gap-3 animate-in slide-in-from-right ${toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-red-600' : 'bg-primary'}`}>
+        {toast.type === 'loading' && <Loader2 className="h-5 w-5 animate-spin" />}
+        {toast.msg}
+      </div>}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-            Stand Online
-          </h1>
-          <p className="text-sm text-gray-500 mt-1 font-medium">
-            Configure a vitrine digital para seus clientes consultarem as
-            unidades
-          </p>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
+        <div className="flex items-center gap-4">
+           <button onClick={() => setSelectedUuid(null)} className="p-2 hover:bg-slate-50 rounded-full text-slate-400"><ChevronLeft className="h-6 w-6" /></button>
+           <div>
+              <h2 className="font-black text-slate-900">{stands.find(s => s.uuid === selectedUuid)?.name}</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Editor de Vitrine</p>
+           </div>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={handleCopyLink}
-            className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl shadow-sm hover:bg-gray-50 flex items-center gap-2 transition-all"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-emerald-500" />
-            ) : (
-              <Share2 className="h-4 w-4" />
-            )}
-            {copied ? "Copiado!" : "Link do Stand"}
-          </button>
-          {hasChanges && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-amber-500 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 flex items-center gap-2 transition-all disabled:opacity-60"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              Salvar Alterações
-            </button>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-primary text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary/90 flex items-center gap-2 transition-all disabled:opacity-60"
-          >
-            <Globe className="h-4 w-4" /> Publicar
-          </button>
+           <button 
+            onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/stand/v/${selectedUuid}`);
+              showToast("Link copiado!", "success");
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl font-black text-xs hover:bg-slate-100 transition-all"
+           >
+              <Share2 className="h-4 w-4" /> COPIAR LINK
+           </button>
+           <button 
+            onClick={handleSaveConfig}
+            className="bg-primary text-white px-6 py-2 rounded-xl font-black text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+           >
+              SALVAR SITE
+           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1 min-h-0">
-        {/* ── Painel de Configurações Lateral ── */}
-        <div className="lg:col-span-1 space-y-6 overflow-y-auto pr-2 pb-10">
-          {/* Imagens */}
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5 border-b border-slate-50 pb-3">
-              Imagens
-            </h3>
-            <div className="space-y-5">
-              <UploadArea
-                label="Imagem Principal (Hero)"
-                hint="JPG, PNG ou WEBP · Recomendado 1200×600px"
-                currentUrl={localConfig.hero_image_url}
-                onUpload={handleUploadHero}
-                onRemove={handleRemoveHero}
-                uploading={uploadingHero}
-                icon={ImageIcon}
-              />
-              <UploadArea
-                label="Mapa / Planta do Loteamento"
-                hint="JPG, PNG ou WEBP · Alta resolução recomendada"
-                currentUrl={localConfig.map_image_url}
-                onUpload={handleUploadMap}
-                onRemove={handleRemoveMap}
-                uploading={uploadingMap}
-                icon={Map}
-              />
-            </div>
-          </div>
-
-          {/* Personalização */}
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5 border-b border-slate-50 pb-3">
-              Personalização
-            </h3>
-            <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 ml-1">
-                  Nome do Empreendimento
-                </label>
-                <input
-                  type="text"
-                  value={localConfig.nome_empreendimento}
-                  onChange={(e) =>
-                    setLocalConfig({
-                      ...localConfig,
-                      nome_empreendimento: e.target.value,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 ml-1">
-                  Slogan
-                </label>
-                <input
-                  type="text"
-                  value={localConfig.slogan}
-                  onChange={(e) =>
-                    setLocalConfig({ ...localConfig, slogan: e.target.value })
-                  }
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 ml-1">
-                  Cor da Identidade
-                </label>
-                <div className="flex gap-2 flex-wrap">
-                  {PALETTE.map((c) => (
-                    <button
-                      key={c.value}
-                      title={c.name}
-                      onClick={() =>
-                        setLocalConfig({
-                          ...localConfig,
-                          cor_primaria: c.value,
-                        })
-                      }
-                      className={`h-8 w-8 rounded-full transition-all ${
-                        localConfig.cor_primaria === c.value
-                          ? "ring-4 ring-offset-1 scale-110"
-                          : "hover:scale-105"
-                      }`}
-                      style={{
-                        backgroundColor: c.value,
-                        // @ts-ignore: ringColor is Tailwind's custom property
-                        "--tw-ring-color":
-                          localConfig.cor_primaria === c.value
-                            ? c.value
-                            : undefined,
-                      } as React.CSSProperties}
-                    />
-                  ))}
-                  <div className="relative">
-                    <input
-                      type="color"
-                      value={localConfig.cor_primaria}
-                      onChange={(e) =>
-                        setLocalConfig({
-                          ...localConfig,
-                          cor_primaria: e.target.value,
-                        })
-                      }
-                      className="absolute inset-0 opacity-0 cursor-pointer w-8 h-8"
-                    />
-                    <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 cursor-pointer hover:scale-105 transition-all">
-                      <Plus className="h-4 w-4" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2 ml-1">
-                  Modelo de Interface
-                </label>
-                <div className="space-y-2">
-                  {["premium", "minimal"].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() =>
-                        setLocalConfig({ ...localConfig, template: t })
-                      }
-                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                        localConfig.template === t
-                          ? "bg-slate-50 border-2 border-primary"
-                          : "bg-white border border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {t === "premium" ? (
-                          <Layout className="h-5 w-5 text-primary" />
-                        ) : (
-                          <Brush className="h-5 w-5 text-gray-400" />
-                        )}
-                        <span
-                          className={`text-sm font-bold ${
-                            localConfig.template === t
-                              ? "text-gray-700"
-                              : "text-gray-500"
-                          }`}
+      <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+               <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Conteúdo Principal</h3>
+                  <div className="space-y-4">
+                     <div>
+                        <label className="block text-xs font-black text-slate-500 mb-2">Vincular Loteamento</label>
+                        <select 
+                          className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-sm"
+                          value={localConfig?.development_id || ""}
+                          onChange={(e) => setLocalConfig({...localConfig!, development_id: Number(e.target.value)})}
                         >
-                          {t === "premium" ? "Premium Modern" : "Minimal Bold"}
-                        </span>
-                      </div>
-                      {localConfig.template === t && (
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                          <option value="">Selecione um loteamento</option>
+                          {developments.map(dev => <option key={dev.id} value={dev.id}>{dev.name}</option>)}
+                        </select>
+                     </div>
+                     <div>
+                        <label className="block text-xs font-black text-slate-500 mb-2">Nome Comercial</label>
+                        <input className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-sm" value={localConfig?.nome_empreendimento} onChange={e => setLocalConfig({...localConfig!, nome_empreendimento: e.target.value})} />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-black text-slate-500 mb-2">Slogan d'O Stand</label>
+                        <input className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-sm" value={localConfig?.slogan} onChange={e => setLocalConfig({...localConfig!, slogan: e.target.value})} />
+                     </div>
+                  </div>
+               </div>
 
-              <div className="pt-2 border-t border-slate-50">
-                <label className="block text-xs font-bold text-gray-500 mb-2 ml-1">
-                  Vincular Loteamento (Dados Reais)
-                </label>
-                <select
-                  value={localConfig.development_id || ""}
-                  onChange={(e) =>
-                    setLocalConfig({
-                      ...localConfig,
-                      development_id: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white cursor-pointer"
-                >
-                  <option value="">Nenhum selecionado</option>
-                  {developments.map((dev) => (
-                    <option key={dev.id} value={dev.id}>
-                      {dev.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-400 mt-2 ml-1 leading-tight">
-                  Selecione o loteamento para puxar os lotes, preços e o mapa interativo automaticamente.
-                </p>
-              </div>
+               <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Identidade Visual</h3>
+                  <div className="grid grid-cols-6 gap-2">
+                     {PALETTE.map(c => (
+                        <button 
+                          key={c.value} 
+                          onClick={() => setLocalConfig({...localConfig!, cor_primaria: c.value})}
+                          style={{ backgroundColor: c.value }} 
+                          className={`h-10 w-10 rounded-full transition-all ${localConfig?.cor_primaria === c.value ? 'ring-4 ring-offset-2 scale-110' : 'hover:scale-105'}`}
+                        />
+                     ))}
+                  </div>
+               </div>
             </div>
-          </div>
 
-          {/* Informações */}
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5 border-b border-slate-50 pb-3">
-              Estatísticas
-            </h3>
-            <div className="space-y-4">
-              {[
-                {
-                  key: "stats_vendido",
-                  label: "% Vendido",
-                  suffix: "%",
-                },
-                {
-                  key: "stats_total_lotes",
-                  label: "Total de Lotes",
-                },
-                {
-                  key: "stats_area_minima",
-                  label: "Área Mínima",
-                },
-              ].map((s) => (
-                <div key={s.key}>
-                  <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">
-                    {s.label}
+            <div className="space-y-6">
+               <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Imagens da Vitrine</h3>
+                  <div className="space-y-4">
+                     <div className="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center cursor-pointer hover:border-primary transition-all">
+                        <ImageIcon className="h-6 w-6 mx-auto mb-2 text-slate-300" />
+                        <p className="text-[10px] font-black text-slate-400">IMAGEM HERO</p>
+                        {localConfig?.hero_image_url && <p className="text-[8px] text-emerald-500 font-bold mt-1">✓ ENVIADA</p>}
+                     </div>
+                     <div className="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center cursor-pointer hover:border-primary transition-all">
+                        <MapIcon className="h-6 w-6 mx-auto mb-2 text-slate-300" />
+                        <p className="text-[10px] font-black text-slate-400">MAPA DO LOTEAMENTO</p>
+                        {localConfig?.map_image_url && <p className="text-[8px] text-emerald-500 font-bold mt-1">✓ ENVIADA</p>}
+                     </div>
+                     <p className="text-[10px] text-slate-400 text-center">Os uploads serão salvos automaticamente ao selecionar os arquivos.</p>
+                  </div>
+               </div>
+
+               <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Publicação</h3>
+                  <label className="flex items-center justify-between cursor-pointer">
+                     <span className="text-sm font-bold text-slate-700">Site está Online?</span>
+                     <input type="checkbox" className="sr-only peer" checked={localConfig?.publicado} onChange={e => setLocalConfig({...localConfig!, publicado: e.target.checked})} />
+                     <div className="relative w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                   </label>
-                  <input
-                    type="text"
-                    value={localConfig[s.key as keyof StandConfig] as string}
-                    onChange={(e) =>
-                      setLocalConfig({
-                        ...localConfig,
-                        [s.key]: e.target.value,
-                      })
-                    }
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
-                </div>
-              ))}
+               </div>
             </div>
-          </div>
-
-          {/* Plugins */}
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5 border-b border-slate-50 pb-3">
-              Plugins
-            </h3>
-            <div className="space-y-3">
-              {[
-                { key: "mapa_interativo", label: "Mapa Interativo" },
-                { key: "simulador_financeiro", label: "Simulador Financeiro" },
-                { key: "tour_virtual", label: "Tour Virtual 360º" },
-              ].map((plugin) => {
-                const isActive =
-                  localConfig.plugins[
-                    plugin.key as keyof typeof localConfig.plugins
-                  ];
-                return (
-                  <div
-                    key={plugin.key}
-                    className={`flex items-center justify-between p-3 rounded-xl transition-colors ${
-                      isActive ? "bg-green-50" : "bg-slate-50"
-                    }`}
-                  >
-                    <span
-                      className={`text-xs font-bold ${
-                        isActive ? "text-green-700" : "text-slate-400"
-                      }`}
-                    >
-                      {plugin.label}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setLocalConfig({
-                          ...localConfig,
-                          plugins: {
-                            ...localConfig.plugins,
-                            [plugin.key]: !isActive,
-                          },
-                        })
-                      }
-                      className="transition-colors"
-                    >
-                      {isActive ? (
-                        <ToggleRight className="h-6 w-6 text-green-500" />
-                      ) : (
-                        <ToggleLeft className="h-6 w-6 text-slate-300" />
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="bg-gradient-to-br from-gray-900 to-slate-800 rounded-3xl p-6 shadow-xl text-white">
-            <div className="flex items-center gap-2 mb-3">
-              <Monitor className="h-4 w-4 text-blue-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Status do Stand
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mb-1">
-              <div
-                className={`h-2.5 w-2.5 rounded-full ${localConfig.publicado ? "bg-green-400 animate-pulse" : "bg-slate-500"}`}
-              />
-              <p className="text-xl font-bold">
-                {localConfig.publicado ? "Online" : "Offline"}
-              </p>
-            </div>
-            <p className="text-xs text-slate-400 font-medium mb-4">
-              Seu stand recebeu 1.240 visitas nas últimas 24h.
-            </p>
-            <button
-              onClick={() =>
-                setLocalConfig({
-                  ...localConfig,
-                  publicado: !localConfig.publicado,
-                })
-              }
-              className={`w-full font-bold py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2 ${
-                localConfig.publicado
-                  ? "bg-red-500/20 hover:bg-red-500/30 text-red-300"
-                  : "bg-green-500/20 hover:bg-green-500/30 text-green-300"
-              }`}
-            >
-              {localConfig.publicado ? "Desativar Stand" : "Ativar Stand"}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Visualização do Stand ── */}
-        <div className="lg:col-span-3 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-          {/* Barra de Tabs */}
-          <div className="h-14 border-b border-slate-100 flex items-center justify-between px-6 bg-slate-50/50">
-            <div className="flex gap-4">
-              <button
-                onClick={() => setActiveTab("preview")}
-                className={`text-xs font-bold flex items-center gap-2 transition-all ${activeTab === "preview" ? "text-primary" : "text-gray-400 hover:text-gray-600"}`}
-              >
-                <Eye className="h-4 w-4" /> Visualizar
-              </button>
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`text-xs font-bold flex items-center gap-2 transition-all ${activeTab === "settings" ? "text-primary" : "text-gray-400 hover:text-gray-600"}`}
-              >
-                <Settings className="h-4 w-4" /> Configurações Avançadas
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Toggle Desktop/Mobile */}
-              <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 gap-0.5">
-                <button
-                  onClick={() => setPreviewMode("desktop")}
-                  className={`p-1.5 rounded-md transition-all ${previewMode === "desktop" ? "bg-primary text-white" : "text-gray-400 hover:text-gray-600"}`}
-                >
-                  <Monitor className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setPreviewMode("mobile")}
-                  className={`p-1.5 rounded-md transition-all ${previewMode === "mobile" ? "bg-primary text-white" : "text-gray-400 hover:text-gray-600"}`}
-                >
-                  <Smartphone className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <div className="flex items-center bg-white border border-slate-200 rounded-lg py-1.5 px-3 shadow-sm">
-                <p className="text-[10px] font-bold text-slate-400 mr-2">
-                  URL:
-                </p>
-                <span className="text-[10px] font-black text-gray-700">
-                  seuloteamento.crm.digital/stand
-                </span>
-                <button onClick={handleCopyLink}>
-                  {copied ? (
-                    <Check className="h-3 w-3 text-emerald-500 ml-3" />
-                  ) : (
-                    <Copy className="h-3 w-3 text-slate-300 ml-3 hover:text-primary transition-colors" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Preview */}
-          {activeTab === "preview" && (
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-100/40 flex justify-center">
-              <div
-                className={`bg-white shadow-2xl rounded-2xl overflow-hidden border border-slate-200 flex flex-col transition-all duration-300 ${
-                  previewMode === "mobile"
-                    ? "w-[390px]"
-                    : "w-full max-w-4xl"
-                }`}
-              >
-                {/* Navbar do Stand */}
-                <div
-                  className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-8"
-                  style={{ borderBottomColor: `${localConfig.cor_primaria}15` }}
-                >
-                  <div
-                    className="font-black italic text-lg tracking-tighter"
-                    style={{ color: localConfig.cor_primaria }}
-                  >
-                    {localConfig.nome_empreendimento.toUpperCase()}
-                  </div>
-                  {previewMode !== "mobile" && (
-                    <div className="flex gap-6 text-xs font-bold text-gray-500">
-                      <span
-                        className="border-b-2 pb-1"
-                        style={{
-                          color: localConfig.cor_primaria,
-                          borderColor: localConfig.cor_primaria,
-                        }}
-                      >
-                        Início
-                      </span>
-                      <span>Unidades</span>
-                      <span>Localização</span>
-                      <span>Contato</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Hero */}
-                <div className="relative h-[340px]">
-                  <img
-                    src={heroImageSrc}
-                    className="w-full h-full object-cover"
-                    alt="Hero do Stand"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10">
-                    <h2
-                      className={`font-black text-white mb-2 leading-tight ${previewMode === "mobile" ? "text-2xl" : "text-4xl"}`}
-                    >
-                      {localConfig.slogan}
-                    </h2>
-                    <p className="text-slate-200 max-w-lg text-sm font-medium">
-                      {localConfig.descricao}
-                    </p>
-                    <div className="flex gap-4 mt-6 flex-wrap">
-                      <button
-                        className="text-white font-bold py-3 px-7 rounded-full text-xs"
-                        style={{
-                          backgroundColor: localConfig.cor_primaria,
-                        }}
-                      >
-                        Ver Mapa Interativo
-                      </button>
-                      <button className="bg-white/20 backdrop-blur-md text-white border border-white/30 font-bold py-3 px-7 rounded-full text-xs">
-                        Falar com Corretor
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="p-8">
-                  <div
-                    className={`grid gap-6 text-center mb-10 ${previewMode === "mobile" ? "grid-cols-3" : "grid-cols-3"}`}
-                  >
-                    {[
-                      {
-                        value: `${localConfig.stats_vendido}%`,
-                        label: "Vendido",
-                      },
-                      {
-                        value: localConfig.stats_total_lotes,
-                        label: "Lotes Totais",
-                      },
-                      {
-                        value: localConfig.stats_area_minima,
-                        label: "Área Mínima",
-                      },
-                    ].map((stat) => (
-                      <div
-                        key={stat.label}
-                        className="p-4 bg-slate-50 rounded-2xl"
-                      >
-                        <p
-                          className="text-2xl font-black mb-1"
-                          style={{ color: localConfig.cor_primaria }}
-                        >
-                          {stat.value}
-                        </p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {stat.label}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Mapa do Loteamento */}
-                  {localConfig.plugins.mapa_interativo && (
-                    <div className="mb-10">
-                      <h3 className="text-xl font-black text-slate-900 mb-5 flex items-center gap-3">
-                        <div
-                          className="h-1 w-10 rounded-full"
-                          style={{
-                            backgroundColor: localConfig.cor_primaria,
-                          }}
-                        />
-                        Mapa do Loteamento
-                      </h3>
-                      {mapImageSrc ? (
-                        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                          <img
-                            src={mapImageSrc}
-                            alt="Mapa do Loteamento"
-                            className="w-full object-contain max-h-80"
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          className="h-48 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-primary/40 transition-colors"
-                          onClick={() => {
-                            // Abre o painel de upload
-                            const el = document.getElementById(
-                              "map-upload-trigger"
-                            );
-                            el?.click();
-                          }}
-                        >
-                          <Map className="h-10 w-10 text-slate-300" />
-                          <p className="text-sm font-bold text-slate-400">
-                            Nenhum mapa enviado
-                          </p>
-                          <p className="text-xs text-slate-300">
-                            Faça o upload pela barra lateral esquerda
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Diferenciais */}
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 mb-5 flex items-center gap-3">
-                      <div
-                        className="h-1 w-10 rounded-full"
-                        style={{ backgroundColor: localConfig.cor_primaria }}
-                      />
-                      Diferenciais
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      {localConfig.diferenciais.map((item) => (
-                        <div
-                          key={item}
-                          className="flex items-center gap-3 text-sm font-bold text-gray-700"
-                        >
-                          <div
-                            className="h-5 w-5 rounded-full flex items-center justify-center text-white"
-                            style={{
-                              backgroundColor: `${localConfig.cor_primaria}20`,
-                            }}
-                          >
-                            <CheckCircle2
-                              className="h-3 w-3"
-                              style={{ color: localConfig.cor_primaria }}
-                            />
-                          </div>
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div
-                  className="p-6 text-center border-t"
-                  style={{ borderTopColor: `${localConfig.cor_primaria}15` }}
-                >
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
-                    Desenvolvido por
-                  </p>
-                  <div
-                    className="font-bold"
-                    style={{ color: localConfig.cor_primaria }}
-                  >
-                    CRM Loteamento
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Aba Configurações Avançadas */}
-          {activeTab === "settings" && (
-            <div className="flex-1 overflow-y-auto p-8">
-              <div className="max-w-2xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                  <h4 className="text-sm font-black text-gray-700 mb-4 flex items-center gap-2">
-                    <Edit3 className="h-4 w-4 text-primary" />
-                    Descrição Completa
-                  </h4>
-                  <textarea
-                    value={localConfig.descricao}
-                    onChange={(e) =>
-                      setLocalConfig({
-                        ...localConfig,
-                        descricao: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
-                  />
-                </div>
-
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                  <h4 className="text-sm font-black text-gray-700 mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                    Diferenciais do Empreendimento
-                  </h4>
-                  <div className="space-y-2">
-                    {localConfig.diferenciais.map((d, i) => (
-                      <div key={i} className="flex gap-2">
-                        <input
-                          type="text"
-                          value={d}
-                          onChange={(e) => {
-                            const arr = [...localConfig.diferenciais];
-                            arr[i] = e.target.value;
-                            setLocalConfig({
-                              ...localConfig,
-                              diferenciais: arr,
-                            });
-                          }}
-                          className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                        />
-                        <button
-                          onClick={() =>
-                            setLocalConfig({
-                              ...localConfig,
-                              diferenciais: localConfig.diferenciais.filter(
-                                (_, idx) => idx !== i
-                              ),
-                            })
-                          }
-                          className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() =>
-                        setLocalConfig({
-                          ...localConfig,
-                          diferenciais: [...localConfig.diferenciais, ""],
-                        })
-                      }
-                      className="w-full flex items-center justify-center gap-2 p-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm font-bold text-slate-400 hover:border-primary/40 hover:text-primary transition-all"
-                    >
-                      <Plus className="h-4 w-4" /> Adicionar Diferencial
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="bg-primary text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary/90 flex items-center gap-2 transition-all disabled:opacity-60"
-                  >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    Salvar Todas as Configurações
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+         </div>
       </div>
     </div>
   );
@@ -1381,12 +398,8 @@ function StandOnlineContent() {
 
 export default function StandOnlinePage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-10 w-10 text-primary animate-spin" />
-      </div>
-    }>
-      <StandOnlineContent />
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-transparent"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>}>
+      <StandManagerContent />
     </Suspense>
   );
 }

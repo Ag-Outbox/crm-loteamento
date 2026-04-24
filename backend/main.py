@@ -3,6 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from routers import leads, units, sales, integrations, reports, calculator, auth, users, proposals, maps, stand
+from database import engine
+import models
+
+# Criar tabelas se não existirem
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CRM Loteamento API", version="1.0.0")
 
